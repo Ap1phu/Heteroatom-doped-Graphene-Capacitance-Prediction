@@ -16,15 +16,14 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import KFold
-import seaborn as sns
 from sklearn.metrics import r2_score,mean_squared_error
 
 """## Import Data"""
 
-raw_csv_data_pd = pd.read_csv(".../Shuffled_raw_data.csv")
-raw_csv_data = raw_csv_data_pd.to_numpy()
-shuffled_inputs = raw_csv_data[:,0:-1]
-shuffled_targets = raw_csv_data[:,-1]
+raw_csv_data_pd = pd.read_csv(".../Shuffled_raw_data.csv")      #Import data in csv file
+raw_csv_data = raw_csv_data_pd.to_numpy()                       #Convert to numpy array
+shuffled_inputs = raw_csv_data[:,0:-1]                          
+shuffled_targets = raw_csv_data[:,-1]                           #Targets at the last column of the imported file
 print("The input data are in dimension",shuffled_inputs.shape)
 print("The output data are in dimension",shuffled_targets.shape)
 
@@ -33,7 +32,7 @@ print("The output data are in dimension",shuffled_targets.shape)
 """
 
 samples_count = shuffled_inputs.shape[0]
-train_samples_count = int(0.9 * samples_count)
+train_samples_count = int(0.9 * samples_count)           #Split to train:test=90:10
 train_inputs = shuffled_inputs[:train_samples_count]
 train_targets = shuffled_targets[:train_samples_count]
 test_inputs = shuffled_inputs[train_samples_count:]
@@ -45,7 +44,7 @@ print("The test_input data are in dimension",test_inputs.shape)
 
 def preprocess(train,validation,test):  #Include standardization and PCA
   scaler=StandardScaler()
-  scaler.fit(train)
+  scaler.fit(train)          #fit the scaler on train data NOT validation/test
   scaled_train_inputs=scaler.transform(train)
   scaled_validation_inputs=scaler.transform(validation)
   scaled_test_inputs=scaler.transform(test)
@@ -53,31 +52,36 @@ def preprocess(train,validation,test):  #Include standardization and PCA
   return X,Y,Z
 
 def pca_scale(train,validation,test):
-  pca=PCA(n_components = 9)
-  reduced_train_inputs=pca.fit_transform(train)
+  pca=PCA(n_components = 9)       #Reduce to 9 inputs
+  reduced_train_inputs=pca.fit_transform(train)   #fit PCA on train data NOT validation/test
   reduced_validation_inputs=pca.transform(validation)
   reduced_test_inputs=pca.transform(test)
   return reduced_train_inputs,reduced_validation_inputs,reduced_test_inputs
 
 """##ANN+Cross Validation"""
 
+#Report performance of the model on each train/validation/test
 def perform(train_val_acc,pred_train,pred_test):
   print("R-square on train is",train_val_acc[:,0])
   print("R-square on validation is",train_val_acc[:,1])
-  print("RMSE on train is", (1-train_val_acc[:,0])*TSS[:,0])
-  print("RMSE on validation is", (1-train_val_acc[:,1])*TSS[:,1])
-  print("Average R-square on train is",np.mean(train_val_acc,axis=0)[0],"Average R-square on validation is",np.mean(train_val_acc,axis=0)[1])
+  print("MSE on train is", (1-train_val_acc[:,0])*TSS[:,0])
+  print("MSE on validation is", (1-train_val_acc[:,1])*TSS[:,1])
+  print("Average R-square on train is",np.mean(train_val_acc,axis=0)[0])
+  print("Average R-square on validation is",np.mean(train_val_acc,axis=0)[1])
   print("R-square on test set is",r2_score(test_targets,np.mean(pred_test,axis=1)))
-  print("RMSE on test set is", mean_squared_error(test_targets,np.mean(pred_test,axis=1)))
-  plt.scatter(np.squeeze(np.mean(pred_train,axis=1)),np.squeeze(train_targets),s=20)
-  plt.scatter(np.squeeze(np.mean(pred_test,axis=1)),np.squeeze(test_targets),c='red',s=20)
-  plt.plot(shuffled_targets,shuffled_targets,c='orange')
+  print("MSE on test set is", mean_squared_error(test_targets,np.mean(pred_test,axis=1)))
+
+  #Scatter plot between predicted value and target value
+  plt.scatter(np.squeeze(np.mean(pred_train,axis=1)),np.squeeze(train_targets),s=20)          #Train data scatter plot
+  plt.scatter(np.squeeze(np.mean(pred_test,axis=1)),np.squeeze(test_targets),c='red',s=20)    #Test data scatter plot
+  plt.plot(shuffled_targets,shuffled_targets,c='orange')  #45-degree line
   plt.xlabel("Predicted value (F/g)", fontsize=18)
   plt.ylabel("Experimental value(F/g)", fontsize=18)
   plt.xlim([0,400])
   plt.ylim([-10,400])
   plt.show()
 
+#For observing learning curve
 def PlotLC(Learning_curve):
   loss , val_loss = Learning_curve[:,0] , Learning_curve[:,1]
   indices=np.linspace(1,Learning_curve.shape[0],num=Learning_curve.shape[0])
@@ -87,7 +91,8 @@ def PlotLC(Learning_curve):
   plt.ylabel("Loss", fontsize=18)
   plt.xlim([0,Learning_curve.shape[0]])
   plt.ylim([0,5000])
-  plt.show()
+  plt.show() 
+  print("Orange line is for average train loss while Purple line is for average validation loss")
 
 def ANN(X_train,y_train,X_validation,y_validation,X_test,i,Learning_curve):
   #Model
@@ -99,7 +104,7 @@ def ANN(X_train,y_train,X_validation,y_validation,X_test,i,Learning_curve):
         tf.keras.layers.Dense(hidden_layer_size_1, activation='tanh',kernel_regularizer=tf.keras.regularizers.L2(0.01)), # 1st hidden layer
         tf.keras.layers.Dense(output_size, activation='relu',kernel_regularizer=tf.keras.regularizers.L2(0.01)) # output layer
     ])
-  customized_optimizer = tf.keras.optimizers.Adam(learning_rate=0.1)
+  customized_optimizer = tf.keras.optimizers.Adam(learning_rate=0.1)    #Learning rate and Adam optimizer
   model.compile(optimizer=customized_optimizer, loss='mse', metrics=['mean_squared_error'])
   history=model.fit(X_train, # train inputs
             y_train, # train targets
@@ -113,7 +118,7 @@ def ANN(X_train,y_train,X_validation,y_validation,X_test,i,Learning_curve):
   pred_train[:,i]=model.predict(np.insert(X_train,validation_index[0],X_validation,axis=0)).reshape(-1,)
   pred_test[:,i]=model.predict(X_test).reshape(-1,)
 
-  #Save model
+  #Save model for later use
   #filepath = F".../ANN Model/Fold"+str(i)    
   #tf.keras.models.save_model(model,filepath)
   print("Training for fold",str(i+1)+"/10 is completed")
@@ -126,20 +131,21 @@ def ANN(X_train,y_train,X_validation,y_validation,X_test,i,Learning_curve):
   return Learning_curve
 
 #Initiate some arrays
-k , i = 10 , 0 
-kf = KFold(n_splits=k)
-pred_train , pred_test = np.zeros((train_inputs.shape[0],k)) , np.zeros((test_inputs.shape[0],k)) 
-train_val_acc , TSS =np.zeros((k,2)) , np.zeros((k,2))
+k , i , Learning_curve = 10 , 0 , 0   #k for total number of folds, i for ith fold, Learning_curve for storing train and val loss in each epoch
+kf = KFold(n_splits=k)      #Cross validation 10 folds
+pred_train , pred_test = np.zeros((train_inputs.shape[0],k)) , np.zeros((test_inputs.shape[0],k))       #For storing predicted values of train data and test data in each fold
+train_val_acc =np.zeros((k,2))      #For storing R2 values for train data and validation data in each fold
+TSS = np.zeros((k,2))               #For storing total sum of square values for train data and validation data in each fold
 
 #Split,CV,Preprocess
 for train_index, validation_index in kf.split(train_targets):
-  X_train, X_validation = train_inputs[train_index], train_inputs[validation_index]
+  X_train, X_validation = train_inputs[train_index], train_inputs[validation_index]   #Splitting
   y_train, y_validation = train_targets[train_index], train_targets[validation_index]
-  X_train_prep, X_validation_prep, X_test_prep = preprocess(X_train, X_validation,test_inputs)
-  TSS[i,0]=np.mean((y_train-np.mean(y_train))**2)
+  X_train_prep, X_validation_prep, X_test_prep = preprocess(X_train, X_validation,test_inputs)    #preprocess
+  TSS[i,0]=np.mean((y_train-np.mean(y_train))**2)       #Calculate total sum of square
   TSS[i,1]=np.mean((y_validation-np.mean(y_validation))**2)
 
-  #Model Here
+  #Fit Model Here
   Learning_curve=ANN(X_train_prep,y_train,X_validation_prep,y_validation,X_test_prep,i,Learning_curve)
   i+=1
 
